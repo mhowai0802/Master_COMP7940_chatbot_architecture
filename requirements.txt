@@ -1,0 +1,15 @@
+# Core dependencies
+python-telegram-bot
+pymongo
+requests
+
+# Additional utilities
+python-dotenv     # For loading environment variables
+pytz             # For timezone handling
+dnspython         # Required for MongoDB connection (esp. with MongoDB Atlas)
+
+# Logging and monitoring
+structlog        # Structured logging
+
+# Development dependencies
+pytest            # For testing
