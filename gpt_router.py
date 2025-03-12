@@ -1,79 +1,113 @@
-from config import chatgpt, logger
+from HKBU_ChatGPT import HKBU_ChatGPT
+import logging
+import json
+
+logger = logging.getLogger(__name__)
 
 
-def determine_intent(user_message):
-    """Use GPT to determine user intent from natural language."""
-    gpt_prompt = f"""As a router for a sports buddy app, determine which function should handle this message: '{user_message}'
+class GPTRouter:
+    def __init__(self):
+        self.chatgpt = HKBU_ChatGPT()
+        logger.info("GPTRouter initialized")
 
-    Available functions:
-    1. sport_now - For registering what sport the user is playing, when, and where
-    2. find_sport_buddy - For finding people to play sports with
-    3. general_chat - For general conversation
+    def route_intent(self, message):
+        """
+        Determine the user's intent from their message
 
-    Return ONLY THE FUNCTION NAME without explanation."""
+        Args:
+            message (str): The user's message
 
-    intent = chatgpt.submit(gpt_prompt).strip().lower()
-    return intent
+        Returns:
+            dict: Intent information including type and any extracted data
+        """
+        # Construct the prompt for the model
+        prompt = (
+            "You are an intent classifier for a sports buddy telegram bot. "
+            "Your task is to identify what the user wants based on their message. "
+            "Here are the possible intents:\n"
+            "1. sport_now - User are playing a sport now\n"
+            "2. find_buddy - User wants to find people to play sports with\n"
+            "3. general_question - User has a general question about sports\n"
+            "If the intent is sport_now, also try to extract:\n"
+            "- sport: What sport they're playing\n"
+            "- location: Where they're playing\n"
+            "- time: When they're playing\n\n"
+            "Return your answer as a Python dictionary exactly like this format with no additional text:\n"
+            "{'intent': 'intent_name', 'extracted_data': {'key': 'value'}}\n\n"
+            f"User message: {message}"
+        )
 
+        logger.info(f"Routing intent for message: {message[:50]}...")
 
-def extract_sport_now_info(user_message):
-    """Extract sport activity information using GPT."""
-    gpt_prompt = f"""Extract the following information from this text: '{user_message}'
-    - Sport name
-    - Date and time
-    - Location
-    - District (if mentioned)
+        try:
+            # Get response from the model
+            response = self.chatgpt.submit(prompt)
+            print("================================")
+            print(response)
+            print("================================")
 
-    Return the information in JSON format with these exact keys: sport, datetime, location, district"""
+            # Clean up the response
+            # Remove any non-dictionary text before and after
+            response = response.strip()
+            if response.find('{') >= 0 and response.rfind('}') >= 0:
+                start = response.find('{')
+                end = response.rfind('}') + 1
+                response = response[start:end]
 
-    response = chatgpt.submit(gpt_prompt)
+            # Replace any double quotes with single quotes for Python dict
+            response = response.replace('"', "'")
 
-    # Try to parse the GPT response as JSON-like structure
-    try:
-        # Extract key-value pairs from the GPT response
-        sport_info = {}
-        for line in response.split('\n'):
-            if ':' in line:
-                key, value = line.split(':', 1)
-                key = key.strip().strip('"')
-                value = value.strip().strip(',').strip('"')
-                if key in ['sport', 'datetime', 'location', 'district']:
-                    sport_info[key] = value
-    except Exception as e:
-        logger.error(f"Error parsing GPT response: {e}")
-        sport_info = {}
+            # Try to parse the dictionary
+            try:
+                intent_data = eval(response)
+                logger.info(f"Intent classified as: {intent_data.get('intent', 'unknown')}")
+                return intent_data
+            except:
+                # If parsing fails, use a simple fallback
+                logger.warning(f"Failed to parse intent from response, using fallback")
 
-    return sport_info
+                # Simple keyword-based fallback
+                if 'sport_now' in response.lower():
+                    return {"intent": "sport_now", "extracted_data": {}}
+                elif 'find_buddy' in response.lower():
+                    return {"intent": "find_buddy", "extracted_data": {}}
+                else:
+                    return {"intent": "general_question", "extracted_data": {}}
 
+        except Exception as e:
+            logger.error(f"Error in GPT routing: {str(e)}")
+            return {
+                "intent": "general_question",
+                "extracted_data": {}
+            }
 
-def extract_find_buddy_info(user_message):
-    """Extract sport and location search criteria using GPT."""
-    gpt_prompt = f"""Extract the sport and location/district from this text: '{user_message}'
-    Return the information in JSON format with these exact keys: sport, district"""
+    def get_sport_response(self, user_query, context=None):
+        """
+        Get a sports-focused response to a user query
 
-    response = chatgpt.submit(gpt_prompt)
+        Args:
+            user_query (str): The user's message
+            context (dict, optional): Additional context information
 
-    # Try to parse the GPT response
-    try:
-        # Extract key-value pairs from the GPT response
-        search_info = {}
-        for line in response.split('\n'):
-            if ':' in line:
-                key, value = line.split(':', 1)
-                key = key.strip().strip('"')
-                value = value.strip().strip(',').strip('"')
-                if key in ['sport', 'district']:
-                    search_info[key] = value
-    except Exception as e:
-        logger.error(f"Error parsing GPT response: {e}")
-        search_info = {}
+        Returns:
+            str: The sports-focused response
+        """
+        # Construct the prompt with sports focus
+        prompt = (
+            "You are a helpful sports assistant for a sports buddy telegram bot. "
+            "Give concise, sports-focused answers. Be friendly but direct. "
+            "If someone asks about sports activities, fitness, training, "
+            "or finding sports buddies, provide practical advice.\n\n"
+        )
 
-    return search_info
+        if context:
+            prompt += f"Context: {context}\n\n"
 
+        prompt += f"User query: {user_query}"
 
-def general_response(user_message):
-    """Generate a general response using GPT."""
-    gpt_prompt = f"""You are a friendly sports buddy assistant. The user says: '{user_message}'. 
-    Respond helpfully and suggest using commands like /sport_now or /find_sport_buddy if relevant."""
-
-    return chatgpt.submit(gpt_prompt)
+        try:
+            response = self.chatgpt.submit(prompt)
+            return response
+        except Exception as e:
+            logger.error(f"Error getting sport response: {str(e)}")
+            return "Sorry, I'm having trouble answering that right now. Please try again later."

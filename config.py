@@ -1,23 +1,22 @@
 import configparser
-import logging
-import pymongo
-from HKBU_ChatGPT import HKBU_ChatGPT
+import os
+from pathlib import Path
 
-# Configure logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Load configuration
+# Read config file
 config = configparser.ConfigParser()
-config.read('./config.ini')
+config_file = Path(__file__).parent / "config.ini"
+config.read(config_file)
 
-# Initialize ChatGPT
-chatgpt = HKBU_ChatGPT('./config.ini')
+# ChatGPT API configuration
+CHATGPT_BASIC_URL = config.get('CHATGPT', 'BASICURL')
+CHATGPT_MODEL_NAME = config.get('CHATGPT', 'MODELNAME')
+CHATGPT_API_VERSION = config.get('CHATGPT', 'APIVERSION')
+CHATGPT_ACCESS_TOKEN = config.get('CHATGPT', 'ACCESS_TOKEN')
 
-# MongoDB setup
-client = pymongo.MongoClient("mongodb://localhost:27017/")
-db = client["project"]
-sport_now_collection = db["sport_now"]
+# Telegram configuration
+TELEGRAM_TOKEN = config.get('TELEGRAM', 'TOKEN')
 
-# Get Telegram token
-TELEGRAM_TOKEN = config['TELEGRAM']['TOKEN']
+# MongoDB configuration
+# Default to localhost if not specified in config
+MONGODB_URI = config.get('MONGODB', 'URI', fallback='mongodb://localhost:27017/')
+MONGODB_DB_NAME = config.get('MONGODB', 'DB_NAME', fallback='sports_buddy_db')
