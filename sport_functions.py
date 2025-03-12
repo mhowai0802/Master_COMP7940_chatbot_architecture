@@ -1,6 +1,9 @@
 from datetime import datetime
-from pymongo import MongoClient
 import logging
+import certifi
+from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.server_api import ServerApi
 from config import MONGODB_URI, MONGODB_DB_NAME
 
 # Set up logging
@@ -10,58 +13,114 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# MongoDB connection
-try:
-    client = MongoClient(MONGODB_URI)
-    db = client[MONGODB_DB_NAME]
-    sports_collection = db['sports_activities']
-    # Create an index on date for faster queries
-    sports_collection.create_index('date')
-    logger.info(f"Connected to MongoDB successfully at {MONGODB_URI}")
-except Exception as e:
-    logger.error(f"Error connecting to MongoDB: {e}")
+
+# MongoDB connection class
+class Database:
+    def __init__(self):
+        self.client = None
+        self.db = None
+        self.activities_collection = None
+        self.is_available = self._connect()
+
+    def _connect(self):
+        try:
+            self.client = MongoClient(MONGODB_URI, server_api=ServerApi('1'), tlsCAFile=certifi.where())
+            self.client.admin.command('ping')  # Force a connection to verify it works
+            self.db = self.client["sport_buddy_db"]
+            self.activities_collection = self.db["activities"]
+            logger.info("MongoDB connection successful")
+            return True
+        except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+            logger.error(f"MongoDB connection error: {str(e)}")
+            return False
+
+    def get_collection(self):
+        if self.is_available:
+            return self.activities_collection
+        else:
+            return FallbackDB()
 
 
-    # Provide a fallback for testing
-    class FallbackDB:
-        def __init__(self):
-            self.sports_activities = []
+# Define a fallback database class
+class FallbackDB:
+    def __init__(self):
+        self.sports_activities = []
+        logger.warning("Using fallback in-memory database")
 
-        def insert_one(self, document):
-            self.sports_activities.append(document)
+    def insert_one(self, document):
+        self.sports_activities.append(document)
+        return type('obj', (object,), {'inserted_id': True})
+
+    def find(self, query=None):
+        return Cursor(self.sports_activities, query)
+
+    def count_documents(self, query=None):
+        if not query:
+            return len(self.sports_activities)
+
+        count = 0
+        for doc in self.sports_activities:
+            if self._matches_query(doc, query):
+                count += 1
+        return count
+
+    def distinct(self, field):
+        result = set()
+        for doc in self.sports_activities:
+            if field in doc:
+                result.add(doc[field])
+        return list(result)
+
+    def _matches_query(self, document, query):
+        if not query:
             return True
 
-        def find(self, query=None):
-            today = datetime.now().strftime("%Y-%m-%d")
-            if query and 'date' in query:
-                return [activity for activity in self.sports_activities if activity['date'] == query['date']]
-            return self.sports_activities
-
-        def count_documents(self, query=None):
-            if not query:
-                return len(self.sports_activities)
-
-            count = 0
-            for doc in self.sports_activities:
-                match = True
-                for k, v in query.items():
-                    if k not in doc or doc[k] != v:
-                        match = False
-                        break
-                if match:
-                    count += 1
-            return count
-
-        def distinct(self, field):
-            result = set()
-            for doc in self.sports_activities:
-                if field in doc:
-                    result.add(doc[field])
-            return list(result)
+        for k, v in query.items():
+            if k not in document or document[k] != v:
+                return False
+        return True
 
 
-    sports_collection = FallbackDB()
-    logger.warning("Using fallback in-memory database")
+class Cursor:
+    def __init__(self, activities, query=None):
+        self.activities = activities
+        self.query = query or {}
+        self.sort_field = None
+        self.sort_direction = 1
+        self.limit_val = None
+
+    def sort(self, field, direction):
+        self.sort_field = field
+        self.sort_direction = direction
+        return self
+
+    def limit(self, limit_val):
+        self.limit_val = limit_val
+        return self
+
+    def __iter__(self):
+        results = []
+        for activity in self.activities:
+            match = True
+            for k, v in self.query.items():
+                if k not in activity or activity[k] != v:
+                    match = False
+                    break
+            if match:
+                results.append(activity)
+
+        if self.sort_field:
+            results.sort(key=lambda x: x.get(self.sort_field, ''), reverse=(self.sort_direction == -1))
+
+        if self.limit_val:
+            results = results[:self.limit_val]
+
+        return iter(results)
+
+
+# Initialize database
+db = Database()
+sports_collection = db.get_collection()
 
 
 def save_sport_now(sport_info, user_name):
@@ -83,7 +142,7 @@ def save_sport_now(sport_info, user_name):
         document['created_at'] = datetime.now()
 
         # Insert into database
-        result = sports_collection.insert_one(document)
+        sports_collection.insert_one(document)
         logger.info(f"Saved sport activity: {sport_info['sport']} by {user_name}")
         return True
     except Exception as e:
@@ -138,11 +197,13 @@ def extract_sport_now_info(message):
     Returns:
         dict: Extracted sport information
     """
-    # This is a simple implementation.
-    # In a real application, you would use more sophisticated NLP or
-    # your GPT router to extract this information more accurately.
-
-    sport_info = {}
+    sport_info = {
+        'sport': "Unknown Sport",
+        'datetime': datetime.now().strftime("%H:%M"),
+        'location': "Unknown Location",
+        'district': "Unknown District",
+        'date': datetime.now().strftime("%Y-%m-%d")
+    }
 
     # Try to extract sport
     common_sports = ["basketball", "football", "soccer", "tennis", "badminton",
@@ -153,19 +214,16 @@ def extract_sport_now_info(message):
             break
 
     # Simple time extraction
-    time_indicators = ["at ", "from ", "starting at ", "begin at "]
-    for indicator in time_indicators:
+    for indicator in ["at ", "from ", "starting at ", "begin at "]:
         if indicator in message.lower():
-            # Extract time (very simplified)
             parts = message.lower().split(indicator)
             if len(parts) > 1:
                 time_part = parts[1].split()[0]
                 sport_info['datetime'] = time_part
                 break
 
-    # Simple location extraction (look for "in" or "at")
-    location_indicators = [" in ", " at "]
-    for indicator in location_indicators:
+    # Simple location extraction
+    for indicator in [" in ", " at "]:
         if indicator in message:
             parts = message.split(indicator)
             if len(parts) > 1:
@@ -173,29 +231,14 @@ def extract_sport_now_info(message):
                 sport_info['location'] = location_part.strip()
                 break
 
-    # Default values if not found
-    if 'sport' not in sport_info:
-        sport_info['sport'] = "Unknown Sport"
-    if 'datetime' not in sport_info:
-        sport_info['datetime'] = datetime.now().strftime("%H:%M")
-    if 'location' not in sport_info:
-        sport_info['location'] = "Unknown Location"
-
-    # Add today's date
-    sport_info['date'] = datetime.now().strftime("%Y-%m-%d")
-
-    # Extract district if mentioned, otherwise set to Unknown
-    if 'location' in sport_info:
-        # Simplified district extraction
-        hk_districts = ["central", "wan chai", "causeway bay", "north point",
-                        "tsim sha tsui", "mong kok", "sham shui po", "sha tin",
-                        "tai po", "tuen mun"]
-        for district in hk_districts:
-            if district in sport_info['location'].lower():
-                sport_info['district'] = district.title()
-                break
-        if 'district' not in sport_info:
-            sport_info['district'] = "Unknown District"
+    # Extract district if mentioned
+    hk_districts = ["central", "wan chai", "causeway bay", "north point",
+                    "tsim sha tsui", "mong kok", "sham shui po", "sha tin",
+                    "tai po", "tuen mun"]
+    for district in hk_districts:
+        if district in sport_info['location'].lower():
+            sport_info['district'] = district.title()
+            break
 
     return sport_info
 
@@ -237,17 +280,15 @@ def get_activity_stats():
         # Count total activities
         total = sports_collection.count_documents({})
 
-        # Count activities by sport
+        # Count activities by sport and district
         sports = {}
-        for sport in sports_collection.distinct('sport'):
-            count = sports_collection.count_documents({'sport': sport})
-            sports[sport] = count
-
-        # Count activities by district
         districts = {}
+
+        for sport in sports_collection.distinct('sport'):
+            sports[sport] = sports_collection.count_documents({'sport': sport})
+
         for district in sports_collection.distinct('district'):
-            count = sports_collection.count_documents({'district': district})
-            districts[district] = count
+            districts[district] = sports_collection.count_documents({'district': district})
 
         # Get today's count
         today = datetime.now().strftime("%Y-%m-%d")

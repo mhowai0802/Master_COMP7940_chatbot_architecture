@@ -42,9 +42,6 @@ class GPTRouter:
         try:
             # Get response from the model
             response = self.chatgpt.submit(prompt)
-            print("================================")
-            print(response)
-            print("================================")
 
             # Clean up the response
             # Remove any non-dictionary text before and after
