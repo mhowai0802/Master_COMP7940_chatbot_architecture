@@ -18,16 +18,9 @@ logger = logging.getLogger(__name__)
 # Create Flask app
 app = Flask(__name__)
 
-
 @app.route('/')
 def home():
     return "Bot is running!"
-
-
-@app.route('/health')
-def health():
-    return "Health check OK"
-
 
 def start_bot():
     """Start the Telegram bot in a separate thread"""
@@ -52,6 +45,8 @@ if __name__ == "__main__":
     start_bot()
     # Get port from environment variable
     port = int(os.environ.get("PORT", 8080))
+
+
 
     # Start the Flask app - this will block
     app.run(host="0.0.0.0", port=port, debug=False)
