@@ -25,7 +25,8 @@ RUN useradd -m botuser && \
     chown -R botuser:botuser /app
 USER botuser
 
-EXPOSE 8443
+# Expose the port - note that we're using 8080 as Render often sets this port
+EXPOSE 8080
 
 # Run the bot when the container launches
 CMD ["python", "main.py"]
