@@ -7,6 +7,12 @@ from telegram.ext import Application
 from telegram_handlers import setup_handlers
 from config import TELEGRAM_TOKEN
 
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return "Bot is running!", 200
+
 # Configure logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -36,3 +42,4 @@ def start_bot():
 if __name__ == "__main__":
     # Start the bot in a separate thread
     start_bot()
+    app.run(host='0.0.0.0', port=8080)
