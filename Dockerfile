@@ -20,6 +20,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy the current directory contents into the container
 COPY . .
 
+# Make the launch script executable
+COPY start.sh .
+RUN chmod +x start.sh
+
 # Create a non-root user and switch to it
 RUN useradd -m botuser && \
     chown -R botuser:botuser /app
@@ -28,5 +32,5 @@ USER botuser
 # Expose the port for the web server
 EXPOSE 10000
 
-# Run both the web server and the bot
-CMD gunicorn --bind 0.0.0.0:$PORT web_server:app
+# Run the launch script
+CMD ["./start.sh"]

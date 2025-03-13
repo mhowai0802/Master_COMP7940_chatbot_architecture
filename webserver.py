@@ -11,6 +11,5 @@ def home():
 def health():
     return "Health check OK"
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+# No need for the if __name__ == "__main__" block
+# flask run will handle this automatically

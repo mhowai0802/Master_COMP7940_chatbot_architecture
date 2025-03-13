@@ -1,30 +1,60 @@
-from telegram import Update
-from telegram.ext import Application
-from config import TELEGRAM_TOKEN
-from telegram_handlers import setup_handlers
+import os
 import logging
+import sys
+import threading
+from flask import Flask
+from telegram.ext import Application
+from telegram_handlers import setup_handlers
+from config import TELEGRAM_TOKEN
 
 # Configure logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    stream=sys.stdout
 )
 logger = logging.getLogger(__name__)
 
-def main():
-    """Start the bot."""
+# Create Flask app
+app = Flask(__name__)
+
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+
+@app.route('/health')
+def health():
+    return "Health check OK"
+
+
+def start_bot():
+    """Start the Telegram bot in a separate thread"""
+    # Check if token is available
+    if not TELEGRAM_TOKEN:
+        logger.error("No TELEGRAM_TOKEN provided. Set this environment variable and restart.")
+        return
+
+    logger.info("Starting Sports Buddy Bot...")
     # Create the Application
-    logger.info("Starting Sports Buddy Bot")
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Set up all handlers
+    # Setup all handlers
     setup_handlers(application)
-    logger.info("Handlers initialized")
 
-    # Start the Bot
-    logger.info("Bot is polling for updates")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # Run the bot
+    application.run_polling()
 
 
 if __name__ == "__main__":
-    main()
+    # Start the bot in a separate thread
+    bot_thread = threading.Thread(target=start_bot)
+    bot_thread.daemon = True  # This ensures the thread will exit when the main program exits
+    bot_thread.start()
+
+    # Get port from environment variable
+    port = int(os.environ.get("PORT", 10000))
+
+    # Start the Flask app - this will block
+    app.run(host="0.0.0.0", port=port, debug=False)
