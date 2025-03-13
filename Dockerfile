@@ -35,4 +35,4 @@ USER botuser
 EXPOSE 8080
 
 # Run both the web server and the bot
-CMD python webserver.py & python main.py
+CMD python main.py
