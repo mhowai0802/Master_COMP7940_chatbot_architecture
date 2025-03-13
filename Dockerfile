@@ -30,7 +30,7 @@ RUN /app/venv/bin/pip install --no-cache-dir --upgrade pip && \
 # Copy application files
 COPY main.py ./
 COPY web_server.py ./
-COPY telegram_handler.py ./
+COPY telegram_handlers.py ./
 COPY config.py ./
 
 # Create a non-root user
