@@ -1,25 +1,35 @@
-import os
+from telegram import Update
+from telegram.ext import Application
+from config import TELEGRAM_TOKEN
+from telegram_handlers import setup_handlers
 import logging
-import sys
+import os
 import asyncio
 from aiohttp import web
-from telegram.ext import Application
-from telegram_handlers import setup_handlers
-from config import TELEGRAM_TOKEN
 
-# Configure logging for containerized environment
+# Configure logging
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-    stream=sys.stdout  # Log to stdout for container logs
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+def main():
+    """Start the bot."""
+    # Create the Application
+    logger.info("Starting Sports Buddy Bot")
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-# Create a simple health check endpoint
+    # Set up all handlers
+    setup_handlers(application)
+    logger.info("Handlers initialized")
+
+    # Start the Bot
+    logger.info("Bot is polling for updates")
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
 async def health_check(request):
     return web.Response(text="Bot is running!")
-
 
 async def start_health_server():
     """Start a web server for health checks"""
@@ -40,42 +50,6 @@ async def start_health_server():
     # Keep the server running
     while True:
         await asyncio.sleep(3600)  # Keep the task alive
-
-
-async def start_bot():
-    """Start the Telegram bot"""
-    # Create the Application with proper shutdown signals
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-
-    # Setup all handlers
-    setup_handlers(application)
-
-    # Run the bot using polling
-    await application.run_polling(allowed_updates=Application.ALL_UPDATES)
-
-
-def main() -> None:
-    """Start both the bot and the health server"""
-    # Check if token is available
-    if not TELEGRAM_TOKEN:
-        logger.error("No TELEGRAM_TOKEN provided. Set this environment variable and restart.")
-        sys.exit(1)
-
-    # Run both the bot and the health server
-    logger.info("Starting Sports Buddy Bot...")
-
-    # Use asyncio to run both servers
-    loop = asyncio.get_event_loop()
-
-    # Create tasks for both servers
-    tasks = [
-        loop.create_task(start_health_server()),
-        loop.create_task(start_bot())
-    ]
-
-    # Run until complete
-    loop.run_until_complete(asyncio.gather(*tasks))
-
 
 if __name__ == "__main__":
     main()
