@@ -30,7 +30,7 @@ RUN useradd -m botuser && \
 USER botuser
 
 # Expose the port for the web server
-EXPOSE 10000
+EXPOSE 8080
 
 # Run the launch script
 CMD ["./start.sh"]
