@@ -19,7 +19,7 @@ RUN python -m venv /app/venv
 # Create start script
 RUN echo '#!/bin/bash\n\
 source /app/venv/bin/activate\n\
-python web_server.py & python main.py\n\
+python webserver.py & python main.py\n\
 wait' > /app/start.sh && \
     chmod +x /app/start.sh
 
@@ -29,7 +29,7 @@ RUN /app/venv/bin/pip install --no-cache-dir --upgrade pip && \
 
 # Copy application files
 COPY main.py ./
-COPY web_server.py ./
+COPY webserver.py ./
 COPY telegram_handlers.py ./
 COPY config.py ./
 
