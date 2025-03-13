@@ -25,8 +25,8 @@ RUN useradd -m botuser && \
     chown -R botuser:botuser /app
 USER botuser
 
-# Expose the port - note that we're using 8080 as Render often sets this port
-EXPOSE 8080
+# Expose the port for the web server
+EXPOSE 10000
 
-# Run the bot when the container launches
-CMD ["python", "main.py"]
+# Run both the web server and the bot
+CMD gunicorn --bind 0.0.0.0:$PORT web_server:app
