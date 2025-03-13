@@ -25,5 +25,7 @@ RUN useradd -m botuser && \
     chown -R botuser:botuser /app
 USER botuser
 
+EXPOSE 8443
+
 # Run the bot when the container launches
 CMD ["python", "main.py"]
