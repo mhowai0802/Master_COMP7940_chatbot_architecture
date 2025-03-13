@@ -15,20 +15,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create Flask app
-app = Flask(__name__)
-
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-
-@app.route('/health')
-def health():
-    return "Health check OK"
-
-
 def start_bot():
     """Start the Telegram bot in a separate thread"""
     # Check if token is available
@@ -49,12 +35,4 @@ def start_bot():
 
 if __name__ == "__main__":
     # Start the bot in a separate thread
-    # bot_thread = threading.Thread(target=start_bot)
-    # bot_thread.daemon = True  # This ensures the thread will exit when the main program exits
-    # bot_thread.start()
-
-    # Get port from environment variable
-    port = int(os.environ.get("PORT", 8080))
-
-    # Start the Flask app - this will block
-    app.run(host="0.0.0.0", port=port, debug=False)
+    start_bot()
