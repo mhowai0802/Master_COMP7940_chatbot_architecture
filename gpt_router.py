@@ -32,7 +32,7 @@ class GPTRouter:
             "- sport: What sport they're playing\n"
             "- location: Where they're playing\n"
             "- time: When they're playing\n\n"
-            "Return your answer as a Python dictionary exactly like this format with no additional text:\n"
+            "Return your answer as a JSON dictionary with this format with no additional text:\n"
             "{'intent': 'intent_name', 'extracted_data': {'key': 'value'}}\n\n"
             f"User message: {message}"
         )
@@ -51,17 +51,13 @@ class GPTRouter:
                 end = response.rfind('}') + 1
                 response = response[start:end]
 
-            # Replace any double quotes with single quotes for Python dict
-            response = response.replace('"', "'")
-
-            # Try to parse the dictionary
+            # Use json instead of eval for safer parsing
             try:
-                intent_data = eval(response)
+                intent_data = json.loads(response.replace("'", "\""))
                 logger.info(f"Intent classified as: {intent_data.get('intent', 'unknown')}")
                 return intent_data
-            except:
-                # If parsing fails, use a simple fallback
-                logger.warning(f"Failed to parse intent from response, using fallback")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse intent from response: {e}, using fallback")
 
                 # Simple keyword-based fallback
                 if 'sport_now' in response.lower():

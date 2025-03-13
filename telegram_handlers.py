@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 gpt_router = GPTRouter()
 
 # Define conversation states for sport registration
-SPORT, LOCATION, DISTRICT, TIME, CONFIRMATION = range(5)
+NAME, SPORT, LOCATION, DISTRICT, TIME, CONFIRMATION = range(6)
 
 # Common sports list for quick selection
 COMMON_SPORTS = ["Basketball", "Football", "Tennis", "Badminton", "Running",
@@ -120,24 +120,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "You can also just chat with me naturally about your sports plans!"
         )
 
+
 async def sport_now(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Start the sport now registration process"""
-    user = update.effective_user
-    context.user_data['name'] = user.first_name  # Automatically use their Telegram name
-
-    # Log the entry to conversation
-    logger.info(f"User {user.first_name} ({user.id}) started sport registration")
-
-    # Create keyboard with common sports
-    reply_markup = create_grid_keyboard(COMMON_SPORTS, "sport", 2)
-
-    await update.message.reply_text(
-        f"Hi {user.first_name}! Let's register your sport activity for today.\n\n"
-        f"What sport will you be playing?",
-        reply_markup=reply_markup
-    )
-
-    return SPORT
+    # We no longer automatically use their Telegram name
+    # Instead, we'll ask for their name first
+    return await ask_name(update, context)
 
 
 async def sport_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -488,41 +476,229 @@ async def handle_natural_sport_input(update: Update, context: ContextTypes.DEFAU
     return LOCATION
 
 
-async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Process text messages with intent routing using GPT."""
+async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Ask the user for their name"""
+
+    # Get the Telegram username as the default
+    user = update.effective_user
+    default_name = user.first_name
+
+    await update.message.reply_text(
+        f"I'll use your Telegram name ({default_name}) by default, but you can provide a different "
+        f"name if you prefer. What name would you like to use?"
+    )
+
+    # Store the default name in case they just press enter or skip
+    context.user_data['default_name'] = default_name
+
+    return NAME
+
+
+async def process_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Process the user's name input"""
+    text = update.message.text.strip()
+
+    # If they entered a blank or very short text, use the default name
+    if len(text) < 2:
+        context.user_data['name'] = context.user_data.get('default_name', update.effective_user.first_name)
+        await update.message.reply_text(f"Using your default name: {context.user_data['name']}")
+    else:
+        context.user_data['name'] = text
+        await update.message.reply_text(f"Thanks, {text}! Now let's continue.")
+
+    # Create keyboard with common sports
+    reply_markup = create_grid_keyboard(COMMON_SPORTS, "sport", 2)
+
+    await update.message.reply_text(
+        "What sport will you be playing?",
+        reply_markup=reply_markup
+    )
+
+    return SPORT
+
+
+async def start_natural_sport_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Start a sport conversation from natural language input"""
+    message = update.message.text
+    user = update.effective_user
+
+    # Get intent from GPT router
+    intent_data = gpt_router.route_intent(message)
+
+    # Only process if intent is sport_now
+    if intent_data.get('intent') != 'sport_now':
+        # Not a sport_now intent, let the normal text handler deal with it
+        await process_general_text(update, context)
+        return ConversationHandler.END
+
+    # Extract data if available
+    extracted = intent_data.get('extracted_data', {})
+
+    # Store default name in context
+    context.user_data['default_name'] = user.first_name
+
+    # Try to get sport from extracted data or detect from message
+    sport_detected = extracted.get('sport')
+    if not sport_detected:
+        for sport in COMMON_SPORTS:
+            if sport.lower() in message.lower():
+                sport_detected = sport
+                break
+
+    if not sport_detected:
+        sport_detected = "Basketball"  # Default fallback
+
+    context.user_data['sport'] = sport_detected
+    logger.info(f"Detected sport from natural language: {sport_detected}")
+
+    # First, ask for their name
+    await update.message.reply_text(
+        f"I see you want to play {sport_detected}! First, I'd like to know what name "
+        f"you'd like to use. I'll use your Telegram name ({user.first_name}) by default, "
+        f"but you can provide a different name if you prefer."
+    )
+
+    return NAME
+
+
+async def process_general_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Process general text messages that aren't part of a conversation"""
+    message = update.message.text
+    user = update.effective_user
+
+    # Get intent from GPT router
+    intent_data = gpt_router.route_intent(message)
+
+    # Handle based on intent
+    if intent_data.get('intent') == 'find_buddy':
+        # They want to find sport buddies
+        await find_sport_buddy(update, context)
+    else:
+        # For any other intent, treat as a general question about sports
+        response = gpt_router.get_sport_response(message)
+        await update.message.reply_text(response)
+
+
+# After processing the name in the natural language flow, we may need to
+# ask for different next info depending on what we already have
+async def process_name_natural_flow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Process the name in the natural language flow and determine next question"""
+    text = update.message.text.strip()
+
+    # If they entered a blank or very short text, use the default name
+    if len(text) < 2:
+        context.user_data['name'] = context.user_data.get('default_name', update.effective_user.first_name)
+        await update.message.reply_text(f"Using your default name: {context.user_data['name']}")
+    else:
+        context.user_data['name'] = text
+        await update.message.reply_text(f"Thanks, {text}! Now let's continue.")
+
+    # Check if we already have a sport (from intent detection)
+    if 'sport' in context.user_data:
+        sport = context.user_data['sport']
+
+        # If we also have a location, ask for district
+        if 'location' in context.user_data:
+            location = context.user_data['location']
+            # Create district selection keyboard
+            reply_markup = create_grid_keyboard(HK_DISTRICTS, "district", 3)
+            await update.message.reply_text(
+                f"Great! You'll be playing {sport} at {location}.\n\n"
+                f"Which district is this in?",
+                reply_markup=reply_markup
+            )
+            return DISTRICT
+        else:
+            # Ask for location
+            await update.message.reply_text(
+                f"Where will you be playing {sport}?\n"
+                f"(e.g., Victoria Park Basketball Court, HKBU Sports Centre)"
+            )
+            return LOCATION
+    else:
+        # If we don't have a sport yet, ask for it
+        reply_markup = create_grid_keyboard(COMMON_SPORTS, "sport", 2)
+        await update.message.reply_text(
+            "What sport will you be playing?",
+            reply_markup=reply_markup
+        )
+        return SPORT
+
+
+async def handle_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int or None:
+    """
+    Single entry point for all text messages
+    Performs intent classification once and routes appropriately
+    """
     message = update.message.text
     user = update.effective_user
 
     # Log the incoming message
-    logger.info(f"Received message from {user.first_name} ({user.id}): {message[:50]}...")
+    logger.info(f"Processing text from {user.first_name} ({user.id}): {message[:50]}...")
 
     # Send typing action to show the bot is processing
     await update.message.chat.send_action('typing')
 
     try:
-        # Get intent from GPT router
+        # Get intent from GPT router - ONLY ONCE
         intent_data = gpt_router.route_intent(message)
-        logger.info(f"Intent detection result: {intent_data}")
+        intent = intent_data.get('intent', 'general_question')
+        extracted = intent_data.get('extracted_data', {})
+
+        logger.info(f"Intent classified as: {intent}")
 
         # Handle based on intent
-        if intent_data.get('intent') == 'sport_now':
-            logger.info("Detected sport_now intent, starting sport registration")
-            # Start the sport_now conversation handler
-            return await handle_natural_sport_input(update, context)
+        if intent == 'sport_now':
+            # Start sport registration flow
 
-        elif intent_data.get('intent') == 'find_buddy':
+            # Store default name
+            context.user_data['default_name'] = user.first_name
+
+            # Store sport if available
+            sport_detected = extracted.get('sport')
+            if not sport_detected:
+                for sport in COMMON_SPORTS:
+                    if sport.lower() in message.lower():
+                        sport_detected = sport
+                        break
+
+            if sport_detected:
+                context.user_data['sport'] = sport_detected
+
+            # Store location if available
+            if 'location' in extracted and extracted['location']:
+                context.user_data['location'] = extracted['location']
+
+            # Store time if available
+            if 'time' in extracted and extracted['time']:
+                context.user_data['time'] = extracted['time']
+
+            # Ask for name first
+            await update.message.reply_text(
+                f"I see you want to play sports! What name would you like to use?\n"
+                f"I'll use your Telegram name ({user.first_name}) by default, "
+                f"but you can provide a different name if you prefer."
+            )
+
+            return NAME  # Return value for ConversationHandler
+
+        elif intent == 'find_buddy':
             # They want to find sport buddies
             await find_sport_buddy(update, context)
+            return None  # No conversation to start
+
         else:
-            # For any other intent, treat as a general question about sports
+            # General question about sports
             response = gpt_router.get_sport_response(message)
             await update.message.reply_text(response)
+            return None  # No conversation to start
 
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}")
         await update.message.reply_text(
             "Sorry, I'm having a bit of trouble right now. Please try again or use one of my commands like /sport_now or /find_sport_buddy."
         )
+        return None  # No conversation to start
 
 
 def setup_handlers(application):
@@ -534,13 +710,13 @@ def setup_handlers(application):
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("clear", clear_chat))
 
-    # Sport Now conversation handler - with two entry points
+    # Sport Now conversation handler - command-based entry
     sport_now_conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler("sport_now", sport_now),
-            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_natural_sport_input)
-        ],
+        entry_points=[CommandHandler("sport_now", sport_now)],
         states={
+            NAME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, process_name)
+            ],
             SPORT: [
                 CallbackQueryHandler(sport_choice, pattern=r"^sport_"),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, location_input)
@@ -561,16 +737,48 @@ def setup_handlers(application):
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        name="sport_conversation",
+        name="command_sport_conversation",
         persistent=False
     )
 
+    # Natural language conversation handler
+    natural_conv_handler = ConversationHandler(
+        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_input)],
+        states={
+            NAME: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, process_name_natural_flow)
+            ],
+            SPORT: [
+                CallbackQueryHandler(sport_choice, pattern=r"^sport_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, location_input)
+            ],
+            LOCATION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, location_input)
+            ],
+            DISTRICT: [
+                CallbackQueryHandler(district_choice, pattern=r"^district_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, district_input)
+            ],
+            TIME: [
+                CallbackQueryHandler(time_choice, pattern=r"^time_"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, time_input)
+            ],
+            CONFIRMATION: [
+                CallbackQueryHandler(confirm_choice, pattern=r"^confirm_")
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        name="natural_language_conversation",
+        persistent=False
+    )
+
+    # Add handlers in the correct order
     application.add_handler(sport_now_conv_handler)
+    application.add_handler(natural_conv_handler)
 
     # Callback query handlers for non-conversation buttons
     application.add_handler(CallbackQueryHandler(handle_clear_chat_callback, pattern=r"^clear_chat_"))
 
-    # Fallback for text messages - only handle text not captured by conversation
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_text))
+    # No need for additional text handlers - all text is handled by the conversation handler
 
     logger.info("All handlers have been set up")

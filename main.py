@@ -49,10 +49,7 @@ def start_bot():
 
 if __name__ == "__main__":
     # Start the bot in a separate thread
-    bot_thread = threading.Thread(target=start_bot)
-    bot_thread.daemon = True  # This ensures the thread will exit when the main program exits
-    bot_thread.start()
-
+    start_bot()
     # Get port from environment variable
     port = int(os.environ.get("PORT", 8080))
 
