@@ -13,18 +13,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements file
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Create a virtual environment
+RUN python -m venv /app/venv
 
-# Copy the current directory contents into the container
-COPY . .
+# Create start script
+RUN echo '#!/bin/bash\n\
+source /app/venv/bin/activate\n\
+python web_server.py & python main.py\n\
+wait' > /app/start.sh && \
+    chmod +x /app/start.sh
 
-# Make the launch script executable
-COPY start.sh .
-RUN chmod +x start.sh
+# Install dependencies in the virtual environment
+RUN /app/venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /app/venv/bin/pip install --no-cache-dir -r requirements.txt
 
-# Create a non-root user and switch to it
+# Copy application files
+COPY main.py ./
+COPY web_server.py ./
+COPY telegram_handler.py ./
+COPY config.py ./
+
+# Create a non-root user
 RUN useradd -m botuser && \
     chown -R botuser:botuser /app
 USER botuser
@@ -32,5 +41,5 @@ USER botuser
 # Expose the port for the web server
 EXPOSE 8080
 
-# Run the launch script
-CMD ["./start.sh"]
+# Run the start script
+CMD ["/app/start.sh"]
