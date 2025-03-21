@@ -26,6 +26,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy all files at once
 COPY . .
 
+EXPOSE 80
+
 # Create a non-root user
 RUN useradd -m botuser && \
     chown -R botuser:botuser /app
