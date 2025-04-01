@@ -1,14 +1,11 @@
 name: Build and deploy Docker Image to Amazon ECR
-
 on:
   push:
-    branches: [ main,winson ]
-
+    branches: [ main ]
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
   IMAGE_REPO: project/tgchatbot
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -29,12 +26,11 @@ jobs:
         with:
           mask-password: 'false'  # Set to 'false' if you need to use the credentials, but be cautious as this will log the Docker password if debug logging is enabled.
           registry-type: private
-
       - name: Build, tag, and push the Docker image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ env.IMAGE_REPO }}
-          IMAGE_TAG: 'lastest'
+          IMAGE_TAG: 'latest'
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
