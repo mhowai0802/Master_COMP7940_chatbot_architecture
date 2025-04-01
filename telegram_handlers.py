@@ -25,9 +25,26 @@ COMMON_SPORTS = ["Basketball", "Football", "Tennis", "Badminton", "Running",
                  "Swimming", "Volleyball", "Table Tennis"]
 
 # Districts in Hong Kong for quick selection
-HK_DISTRICTS = ["Central", "Wan Chai", "Causeway Bay", "North Point", "Quarry Bay",
-                "Tsim Sha Tsui", "Mong Kok", "Yau Ma Tei", "Sham Shui Po",
-                "Sha Tin", "Tai Po", "Tuen Mun", "Yuen Long", "Tsuen Wan"]
+HK_DISTRICTS = [
+    "Central and Western",  # Combined for official accuracy
+    "Eastern",
+    "Islands",
+    "Kowloon City",
+    "Kwai Tsing",
+    "Kwun Tong",
+    "North",
+    "Sai Kung",
+    "Sha Tin",
+    "Sham Shui Po",
+    "Southern",
+    "Tai Po",
+    "Tuen Mun",
+    "Tsuen Wan",
+    "Wan Chai",
+    "Wong Tai Sin",
+    "Yau Tsim Mong",  # Covers Tsim Sha Tsui, Yau Ma Tei, Mong Kok
+    "Yuen Long"
+]
 
 
 # Helper functions to create keyboards
@@ -444,38 +461,6 @@ async def handle_clear_chat_callback(update: Update, context: ContextTypes.DEFAU
         await query.message.edit_text("Chat history will be kept. Continue our conversation!")
 
 
-async def handle_natural_sport_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle natural language input about wanting to play a sport"""
-    message = update.message.text
-    user = update.effective_user
-
-    logger.info(f"Processing natural sport input: {message}")
-
-    # Extract sport from message if possible
-    sport_detected = None
-    for sport in COMMON_SPORTS:
-        if sport.lower() in message.lower():
-            sport_detected = sport
-            break
-
-    if not sport_detected:
-        sport_detected = "Basketball"  # Default fallback
-
-    # Set up the context with what we know
-    context.user_data['name'] = user.first_name
-    context.user_data['sport'] = sport_detected
-
-    logger.info(f"Detected sport from natural language: {sport_detected}")
-
-    # Ask for location
-    await update.message.reply_text(
-        f"Great! I see you want to play {sport_detected}. What's the specific location?\n"
-        f"(e.g., Victoria Park Basketball Court, HKBU Sports Centre)"
-    )
-
-    return LOCATION
-
-
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Ask the user for their name"""
 
@@ -515,50 +500,6 @@ async def process_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     )
 
     return SPORT
-
-
-async def start_natural_sport_conversation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Start a sport conversation from natural language input"""
-    message = update.message.text
-    user = update.effective_user
-
-    # Get intent from GPT router
-    intent_data = gpt_router.route_intent(message)
-
-    # Only process if intent is sport_now
-    if intent_data.get('intent') != 'sport_now':
-        # Not a sport_now intent, let the normal text handler deal with it
-        await process_general_text(update, context)
-        return ConversationHandler.END
-
-    # Extract data if available
-    extracted = intent_data.get('extracted_data', {})
-
-    # Store default name in context
-    context.user_data['default_name'] = user.first_name
-
-    # Try to get sport from extracted data or detect from message
-    sport_detected = extracted.get('sport')
-    if not sport_detected:
-        for sport in COMMON_SPORTS:
-            if sport.lower() in message.lower():
-                sport_detected = sport
-                break
-
-    if not sport_detected:
-        sport_detected = "Basketball"  # Default fallback
-
-    context.user_data['sport'] = sport_detected
-    logger.info(f"Detected sport from natural language: {sport_detected}")
-
-    # First, ask for their name
-    await update.message.reply_text(
-        f"I see you want to play {sport_detected}! First, I'd like to know what name "
-        f"you'd like to use. I'll use your Telegram name ({user.first_name}) by default, "
-        f"but you can provide a different name if you prefer."
-    )
-
-    return NAME
 
 
 async def process_general_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
