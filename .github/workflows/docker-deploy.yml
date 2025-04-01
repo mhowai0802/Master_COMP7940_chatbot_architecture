@@ -2,7 +2,7 @@ name: Build and deploy Docker Image to Amazon ECR
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main,winson ]
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
