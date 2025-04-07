@@ -27,16 +27,21 @@ jobs:
           mask-password: 'false'
           registry-type: private
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
+      # Build only for the platform you need (likely amd64)
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_REPO }}:latest
-          platforms: linux/amd64
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ env.IMAGE_REPO }}
+          IMAGE_TAG: latest
+        run: |
+          # Build specifically for amd64 platform only
+          docker build --platform linux/amd64 -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+      - name: Clean up old images
+        run: |
+          aws ecr batch-delete-image \
+            --repository-name ${{ env.IMAGE_REPO }} \
+            --image-ids imageTag=latest \
+            --region ${{ env.AWS_REGION }} || true
+        continue-on-error: true
