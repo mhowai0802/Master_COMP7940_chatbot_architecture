@@ -1,9 +1,9 @@
-from HKBU_ChatGPT import HKBU_ChatGPT
 import logging
 import json
 
-logger = logging.getLogger(__name__)
+from services.chatgpt_service import HKBU_ChatGPT
 
+logger = logging.getLogger(__name__)
 
 class GPTRouter:
     def __init__(self):
@@ -13,14 +13,7 @@ class GPTRouter:
     def route_intent(self, message):
         """
         Determine the user's intent from their message
-
-        Args:
-            message (str): The user's message
-
-        Returns:
-            dict: Intent information including type and any extracted data
         """
-        # Construct the prompt for the model
         prompt = (
             "You are an intent classifier for a sports buddy telegram bot. "
             "Your task is to identify what the user wants based on their message. "
@@ -44,7 +37,6 @@ class GPTRouter:
             response = self.chatgpt.submit(prompt)
 
             # Clean up the response
-            # Remove any non-dictionary text before and after
             response = response.strip()
             if response.find('{') >= 0 and response.rfind('}') >= 0:
                 start = response.find('{')
@@ -77,15 +69,7 @@ class GPTRouter:
     def get_sport_response(self, user_query, context=None):
         """
         Get a sports-focused response to a user query
-
-        Args:
-            user_query (str): The user's message
-            context (dict, optional): Additional context information
-
-        Returns:
-            str: The sports-focused response
         """
-        # Construct the prompt with sports focus
         prompt = (
             "You are a helpful sports assistant for a sports buddy telegram bot. "
             "Give concise, sports-focused answers. Be friendly but direct. "

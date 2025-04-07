@@ -1,13 +1,11 @@
-import configparser
 import requests
+import configparser
+
+from config import config
 
 class HKBU_ChatGPT:
-    def __init__(self, config_='./config.ini'):
-        if isinstance(config_, str):
-            self.config = configparser.ConfigParser()
-            self.config.read(config_)
-        elif isinstance(config_, configparser.ConfigParser):
-            self.config = config_
+    def __init__(self):
+        self.config = config
 
     def submit(self, message):
         conversation = [{"role": "user", "content": message}]
@@ -28,4 +26,4 @@ class HKBU_ChatGPT:
             data = response.json()
             return data['choices'][0]['message']['content']
         else:
-            return 'Error:', response
+            return f'Error: {response.status_code} - {response.text}'

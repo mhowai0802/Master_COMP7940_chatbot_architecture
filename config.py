@@ -17,6 +17,5 @@ CHATGPT_ACCESS_TOKEN = config.get('CHATGPT', 'ACCESS_TOKEN')
 TELEGRAM_TOKEN = config.get('TELEGRAM', 'TOKEN')
 
 # MongoDB configuration
-# Default to localhost if not specified in config
-MONGODB_URI = config.get('MONGODB', 'URI', fallback='mongodb+srv://mhowaiwork:joniwhfe@cluster0.tfwsu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
-MONGODB_DB_NAME = config.get('MONGODB', 'DB_NAME', fallback='sports_buddy_db')
+MONGODB_URI = config.get('MONGODB', 'URI')
+MONGODB_DB_NAME = config.get('MONGODB', 'DB_NAME')

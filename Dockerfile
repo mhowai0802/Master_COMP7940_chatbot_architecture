@@ -1,40 +1,31 @@
-# Use Python 3.12 as the base image
-FROM python:3.12-slim
+# Use ARM64-compatible Python image
+FROM --platform=linux/arm64 python:3.9-slim
 
-# Set the working directory in the container
+# Set working directory
 WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    && apt-get clean \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Create a virtual environment
-RUN python -m venv /app/venv
-
-# Set environment to use the virtual environment
-ENV PATH="/app/venv/bin:$PATH"
 
 # Copy requirements file first (for better caching)
 COPY requirements.txt .
 
-# Install dependencies in the virtual environment
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all files at once
+# Copy the rest of the application
 COPY . .
 
-EXPOSE 80
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=5000
 
-# Create a non-root user
-RUN useradd -m botuser && \
-    chown -R botuser:botuser /app
-USER botuser
+# Expose the port
+EXPOSE 5000
 
-# Expose the port for the web server
-EXPOSE 8080
-
-# Run both the web server and the bot
-CMD python main.py
+# Run the application
+CMD ["python", "app.py"]
