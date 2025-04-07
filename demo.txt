@@ -1,0 +1,4 @@
+for,now
+i would try to demonstrate how I push the code and it automatically deploy it as image
+and push it to the AWS ECR,
+first i would try to fork to push the code and it automatically deploy
