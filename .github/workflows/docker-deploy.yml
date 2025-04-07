@@ -37,11 +37,3 @@ jobs:
           # Build specifically for amd64 platform only
           docker build --platform linux/amd64 -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-
-      - name: Clean up old images
-        run: |
-          aws ecr batch-delete-image \
-            --repository-name ${{ env.IMAGE_REPO }} \
-            --image-ids imageTag=latest \
-            --region ${{ env.AWS_REGION }} || true
-        continue-on-error: true
